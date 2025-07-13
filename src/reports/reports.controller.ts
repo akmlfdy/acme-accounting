@@ -17,9 +17,16 @@ export class ReportsController {
   @Post()
   @HttpCode(201)
   generate() {
-    this.reportsService.accounts();
-    this.reportsService.yearly();
-    this.reportsService.fs();
+    setImmediate(() => {
+      try {
+        this.reportsService.accounts();
+        this.reportsService.yearly();
+        this.reportsService.fs();
+      } catch (err) {
+        console.error(`[failed:`, err);
+      }
+    });
+
     return { message: 'finished' };
   }
 }

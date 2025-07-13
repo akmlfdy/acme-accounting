@@ -37,11 +37,14 @@ export class ReportsService {
         }
       }
     });
-    const output = ['Account,Balance'];
+    let output = 'Account,Balance\n';
     for (const [account, balance] of Object.entries(accountBalances)) {
-      output.push(`${account},${balance.toFixed(2)}`);
+      output += `${account},${balance.toFixed(2)}\n`;
     }
-    fs.writeFileSync(outputFile, output.join('\n'));
+    // Remove trailing newline
+    output = output.slice(0, -1);
+
+    fs.writeFileSync(outputFile, output);
     this.states.accounts = `finished in ${((performance.now() - start) / 1000).toFixed(2)}`;
   }
 
@@ -70,13 +73,15 @@ export class ReportsService {
         }
       }
     });
-    const output = ['Financial Year,Cash Balance'];
+    let output = 'Financial Year,Cash Balance\n';
     Object.keys(cashByYear)
       .sort()
       .forEach((year) => {
-        output.push(`${year},${cashByYear[year].toFixed(2)}`);
+        output += `${year},${cashByYear[year].toFixed(2)}`;
       });
-    fs.writeFileSync(outputFile, output.join('\n'));
+    output = output.slice(0, -1);
+
+    fs.writeFileSync(outputFile, output);
     this.states.yearly = `finished in ${((performance.now() - start) / 1000).toFixed(2)}`;
   }
 
