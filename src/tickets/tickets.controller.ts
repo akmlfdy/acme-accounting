@@ -40,12 +40,12 @@ export class TicketsController {
       where: { companyId, role: userRole },
       order: [['createdAt', 'DESC']],
     });
+    let assignee = assignees[0];
 
+    const tikets = await Ticket.findAll({
+      where: { companyId, type: TicketType.registrationAddressChange },
+    });
     if (type === TicketType.managementReport) {
-      const tikets = await Ticket.findAll({
-        where: { companyId, type: TicketType.registrationAddressChange },
-      });
-
       if (tikets.length > 0) {
         throw new ConflictException(
           'Cannot create a registration address change ticket. A ticket of this type already exists.',
@@ -53,34 +53,38 @@ export class TicketsController {
       }
     }
 
-    if (!assignees.length && userRole !== UserRole.corporateSecretary)
+    if (type === TicketType.registrationAddressChange && tikets.length > 0) 
       throw new ConflictException(
-        `Cannot find user with role ${userRole} to create a ticket`,
+        `Multiple tickets with type ${type}. Cannot create a ticket`,
       );
+
+    if (!assignees.length) {
+      if (userRole === UserRole.corporateSecretary && type === TicketType.registrationAddressChange) {
+        const directors = await User.findAll({
+          where: { companyId, role: UserRole.director },
+        });
+        if (directors.length > 1)
+          throw new ConflictException(
+            `Multiple directors found for company with id ${companyId}. Cannot create a ticket of type ${type}.`,
+          );
+
+        if (!directors.length)
+          throw new ConflictException(
+            `Cannot find user with role ${UserRole.director} to create a ticket`,
+          );
+        
+        assignee = directors[0];
+      } else {
+        throw new ConflictException(
+          `Cannot find user with role ${userRole} to create a ticket`,
+        );
+      }
+    }
 
     if (userRole === UserRole.corporateSecretary && assignees.length > 1)
       throw new ConflictException(
         `Multiple users with role ${userRole}. Cannot create a ticket`,
       );
-
-    let assignee = assignees[0];
-
-    if (userRole === UserRole.corporateSecretary && assignees.length === 0) {
-      const directors = await User.findAll({
-        where: { companyId, role: UserRole.director },
-      });
-      if (directors.length > 1)
-        throw new ConflictException(
-          `Multiple directors found for company with id ${companyId}. Cannot create a ticket of type ${type}.`,
-        );
-
-      if (!directors.length)
-        throw new ConflictException(
-          `Cannot find user with role ${UserRole.director} to create a ticket`,
-        );
-
-      assignee = directors[0];
-    }
 
     if (type === TicketType.strikeOff) {
       if (assignees.length > 1) {

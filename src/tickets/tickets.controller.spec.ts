@@ -7,6 +7,7 @@ import {
   TicketType,
 } from '../../db/models/Ticket';
 import { User, UserRole } from '../../db/models/User';
+import { Ticket } from '../../db/models/Ticket';
 import { DbModule } from '../db.module';
 import { TicketsController } from './tickets.controller';
 
@@ -132,7 +133,25 @@ describe('TicketsController', () => {
         );
       });
 
-      it('if there is no secretary, throw', async () => {
+      it('if there is no secretary, should assign to director', async () => {
+        const company = await Company.create({ name: 'test' });
+        const userDirector = await User.create({
+          name: 'Test User',
+          role: UserRole.director,
+          companyId: company.id,
+        });
+
+        const ticket = await controller.create({
+          companyId: company.id,
+          type: TicketType.registrationAddressChange,
+        });
+
+        expect(ticket.category).toBe(TicketCategory.corporate);
+        expect(ticket.assigneeId).toBe(userDirector.id);
+        expect(ticket.status).toBe(TicketStatus.open);
+      });
+
+      it('if there is no secretary, should assign to director, throw', async () => {
         const company = await Company.create({ name: 'test' });
 
         await expect(
@@ -142,7 +161,91 @@ describe('TicketsController', () => {
           }),
         ).rejects.toEqual(
           new ConflictException(
-            `Cannot find user with role corporateSecretary to create a ticket`,
+            `Cannot find user with role director to create a ticket`,
+          ),
+        );
+      });
+
+      it('creates with registrationAddressChange ticket already exists, throw', async () => {
+        const company = await Company.create({ name: 'test' });
+        await User.create({
+          name: 'Test User',
+          role: UserRole.corporateSecretary,
+          companyId: company.id,
+        });
+
+        await controller.create({
+          companyId: company.id,
+          type: TicketType.registrationAddressChange,
+        });
+
+        await expect(
+          controller.create({
+            companyId: company.id,
+            type: TicketType.registrationAddressChange,
+          }),
+        ).rejects.toEqual(
+          new ConflictException(
+            `Multiple tickets with type registrationAddressChange. Cannot create a ticket`,
+          ),
+        );
+      });
+    });
+    describe('strikeOff', () => {
+      it('creates strikeOff ticket', async () => {
+        const company = await Company.create({ name: 'test' });
+        const director = await User.create({
+          name: 'Test User',
+          role: UserRole.director,
+          companyId: company.id,
+        });
+
+        await User.create({
+          name: 'Test User2',
+          role: UserRole.accountant,
+          companyId: company.id,
+        });
+
+        const ticket = await controller.create({
+          companyId: company.id,
+          type: TicketType.managementReport,
+        });
+
+        const strikeOffticket = await controller.create({
+          companyId: company.id,
+          type: TicketType.strikeOff,
+        });
+
+        const updatedTicket = (await Ticket.findByPk(ticket.id))!;
+
+        expect(strikeOffticket.category).toBe(TicketCategory.management);
+        expect(strikeOffticket.assigneeId).toBe(director.id);
+        expect(strikeOffticket.status).toBe(TicketStatus.resolved);
+        expect(updatedTicket.status).toBe(TicketStatus.resolved);
+      });
+
+      it('creates strikeOff ticket with multiple director, throw', async () => {
+        const company = await Company.create({ name: 'test' });
+        await User.create({
+          name: 'Test User',
+          role: UserRole.director,
+          companyId: company.id,
+        });
+
+        await User.create({
+          name: 'Test User2',
+          role: UserRole.director,
+          companyId: company.id,
+        });
+
+        await expect(
+          controller.create({
+            companyId: company.id,
+            type: TicketType.strikeOff,
+          }),
+        ).rejects.toEqual(
+          new ConflictException(
+            `Multiple directors found for company ${company.id}. Cannot assign strikeOff ticket.`,
           ),
         );
       });
